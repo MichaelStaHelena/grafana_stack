@@ -1,0 +1,92 @@
+services:
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-storage:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+    restart: unless-stopped
+    networks:
+      - monitoring
+
+  loki:
+    image: grafana/loki:latest
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - loki-storage:/loki-data
+    restart: unless-stopped
+    networks:
+      - monitoring
+
+  mimir:
+    image: grafana/mimir:latest
+    ports:
+      - "9009:9009"
+    command: -config.file=/etc/mimir/mimir-config.yaml
+    volumes:
+      - mimir-storage:/mimir-data
+      - ./mimir-config.yaml:/etc/mimir/mimir-config.yaml
+    restart: unless-stopped
+    networks:
+      - monitoring
+
+  tempo:
+    image: grafana/tempo:latest
+    command: -config.file=/etc/tempo/tempo-config.yaml
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    volumes:
+      - tempo-storage:/tempo-data
+      - ./tempo-config.yaml:/etc/tempo/tempo-config.yaml
+    restart: unless-stopped
+    networks:
+      - monitoring
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - prometheus-storage:/prometheus
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-remote-write-receiver
+    restart: unless-stopped
+    networks:
+      - monitoring
+
+  node_exporter:
+    image: prom/node-exporter:latest
+    ports:
+      - "9100:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+    restart: unless-stopped
+    networks:
+      - monitoring
+
+networks:
+  monitoring:
+    driver: bridge
+
+volumes:
+  grafana-storage:
+  loki-storage:
+  mimir-storage:
+  tempo-storage:
+  prometheus-storage:

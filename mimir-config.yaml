@@ -1,0 +1,22 @@
+multitenancy_enabled: false
+
+server:
+  http_listen_port: 9009
+  grpc_listen_port: 9095
+
+common:
+  storage:
+    backend: filesystem
+
+blocks_storage:
+  backend: filesystem
+  filesystem:
+    dir: /mimir-data/blocks
+  bucket_store:
+    sync_dir: /mimir-data/sync
+
+memberlist:
+  abort_if_cluster_join_fails: false
+  bind_port: 7946
+  join_members:
+    - mimir:7946
