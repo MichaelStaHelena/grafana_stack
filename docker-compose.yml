@@ -1,92 +1,65 @@
 services:
-  grafana:
-    image: grafana/grafana:latest
-    ports:
-      - "3000:3000"
-    volumes:
-      - grafana-storage:/var/lib/grafana
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_AUTH_ANONYMOUS_ENABLED=false
-    restart: unless-stopped
-    networks:
-      - monitoring
-
-  loki:
-    image: grafana/loki:latest
-    ports:
-      - "3100:3100"
-    command: -config.file=/etc/loki/local-config.yaml
-    volumes:
-      - loki-storage:/loki-data
-    restart: unless-stopped
-    networks:
-      - monitoring
-
-  mimir:
-    image: grafana/mimir:latest
-    ports:
-      - "9009:9009"
-    command: -config.file=/etc/mimir/mimir-config.yaml
-    volumes:
-      - mimir-storage:/mimir-data
-      - ./mimir-config.yaml:/etc/mimir/mimir-config.yaml
-    restart: unless-stopped
-    networks:
-      - monitoring
-
-  tempo:
-    image: grafana/tempo:latest
-    command: -config.file=/etc/tempo/tempo-config.yaml
-    ports:
-      - "4317:4317"
-      - "4318:4318"
-    volumes:
-      - tempo-storage:/tempo-data
-      - ./tempo-config.yaml:/etc/tempo/tempo-config.yaml
-    restart: unless-stopped
-    networks:
-      - monitoring
-
   prometheus:
     image: prom/prometheus:latest
     ports:
       - "9090:9090"
     volumes:
-      - prometheus-storage:/prometheus
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
     command:
-      - --config.file=/etc/prometheus/prometheus.yml
-      - --storage.tsdb.path=/prometheus
-      - --web.enable-remote-write-receiver
-    restart: unless-stopped
-    networks:
-      - monitoring
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
 
-  node_exporter:
-    image: prom/node-exporter:latest
+
+  otel-collector:
+    image: otel/opentelemetry-collector:latest
     ports:
-      - "9100:9100"
+      - "1888:1888"   # pprof extension
+      - "8888:8888"   # Prometheus metrics exposed by the collector
+      - "8889:8889"   # Prometheus exporter metrics
+      - "13133:13133" # health_check extension
+      - "4317:4317"   # OTLP gRPC receiver
+      - "55679:55679" # zpages extension
+    command: ["--config=/etc/otel-collector-config.yaml", "${OTELCOL_ARGS}"]
     volumes:
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      - /:/rootfs:ro
-    command:
-      - '--path.procfs=/host/proc'
-      - '--path.sysfs=/host/sys'
-      - '--path.rootfs=/rootfs'
-    restart: unless-stopped
-    networks:
-      - monitoring
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
 
-networks:
-  monitoring:
-    driver: bridge
+
+  loki:
+    image: grafana/loki:latest
+    ports:
+      - "3100:3100"
+    volumes:
+      - loki_data:/loki
+    command: [ "-config.file=/etc/loki/local-config.yaml" ]
+
+
+  tempo:
+    image: grafana/tempo:latest
+    ports:
+      - "3200:3200"
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml
+      - tempo_data:/tmp/tempo
+    command: [ "-config.file=/etc/tempo.yaml" ]
+
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin2
+      - GF_SECURITY_ADMIN_USER=admin2
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
+
 
 volumes:
-  grafana-storage:
-  loki-storage:
-  mimir-storage:
-  tempo-storage:
-  prometheus-storage:
+  prometheus_data:
+  loki_data:
+  tempo_data:
+  grafana_data:
